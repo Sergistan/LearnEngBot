@@ -1,0 +1,25 @@
+server:
+  port: 8080
+bot_token: ${BOT_TOKEN}
+random_eng_api_token: ${RANDOM_ENG_API_TOKEN}
+random_eng_api_url: "https://api.api-ninjas.com/v1/randomword"
+yandex_token: ${YANDEX_TOKEN}
+yandex_url: "https://translate.api.cloud.yandex.net/translate/v2/translate"
+format_request: "PLAIN_TEXT"
+folderId_request: ${FOLDER_ID_REQUEST}
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+  datasource:
+    url: jdbc:postgresql://localhost:5432/LearnEngBot
+    username: postgres
+    password: 1234
+  config:
+    import: optional:file:.env[.properties]
+management:
+  endpoints:
+    web:
+      exposure:
+        include: restart
