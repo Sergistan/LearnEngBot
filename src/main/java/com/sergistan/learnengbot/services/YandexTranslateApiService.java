@@ -38,6 +38,13 @@ public class YandexTranslateApiService {
     private final String folderId;
     private Hunspell dictionary;
 
+    @PostConstruct
+    public void init() {
+        String dicPath = Paths.get("src/main/resources/hunspell/ru_RU.dic").toString();
+        String affPath = Paths.get("src/main/resources/hunspell/ru_RU.aff").toString();
+        dictionary = new Hunspell(dicPath, affPath);
+    }
+
     public String translateRuToEn(String text) {
         if (!isOneRussianWord(text) || !isRussianWordExistByDictionary(text)) {
             return """
@@ -45,70 +52,53 @@ public class YandexTranslateApiService {
                     Нужно ввести русское существующее слово!
                     """;
         }
-
-        YandexTranslateRequest yandexTranslateRequest = createYandexTranslateRequest(text, "ru", "en");
-
-        HttpHeaders httpHeaders = createHttpHeaders();
-
-        return getTranslateWordFromRequest(yandexTranslateRequest, httpHeaders);
+        return translateWord(text, "ru", "en");
     }
-
 
     public String translateEnToRu(String randomWord) {
-
-        YandexTranslateRequest yandexTranslateRequest = createYandexTranslateRequest(randomWord, "en", "ru");
-
-        HttpHeaders httpHeaders = createHttpHeaders();
-
-        return getTranslateWordFromRequest(yandexTranslateRequest, httpHeaders);
+        return translateWord(randomWord, "en", "ru");
     }
 
+    private String translateWord(String word, String sourceLang, String targetLang) {
+        try {
+            YandexTranslateRequest request = createYandexTranslateRequest(word, sourceLang, targetLang);
+            HttpHeaders headers = createHttpHeaders();
+            return sendTranslationRequest(request, headers);
+        } catch (Exception e) {
+            throw new RuntimeException("Error occurred while translating: " + e.getMessage(), e);
+        }
+    }
 
-    private YandexTranslateRequest createYandexTranslateRequest(String randomWord, String sourceLanguage, String targetLanguage) {
-        return YandexTranslateRequest.
-                builder()
+    private YandexTranslateRequest createYandexTranslateRequest(String word, String sourceLanguage, String targetLanguage) {
+        return YandexTranslateRequest.builder()
                 .sourceLanguageCode(sourceLanguage)
                 .targetLanguageCode(targetLanguage)
                 .format(format)
                 .folderId(folderId)
-                .texts(List.of(randomWord))
+                .texts(List.of(word))
                 .speller(true)
                 .build();
     }
 
     private HttpHeaders createHttpHeaders() {
-        HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.set("Authorization", "Bearer " + yandexToken);
-        httpHeaders.set("Content-type", "application/json");
-        return httpHeaders;
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + yandexToken);
+        headers.set("Content-type", "application/json");
+        return headers;
     }
 
-    private String getTranslateWordFromRequest(YandexTranslateRequest yandexTranslateRequest, HttpHeaders httpHeaders) {
-        HttpEntity<YandexTranslateRequest> httpEntity = new HttpEntity<>(yandexTranslateRequest, httpHeaders);
-
-        ResponseEntity<YandexTranslateResponse> exchange = restTemplate.exchange(url, HttpMethod.POST, httpEntity, YandexTranslateResponse.class);
-
-        return Objects.requireNonNull(exchange.getBody()).getTranslations().get(0).getText();
+    private String sendTranslationRequest(YandexTranslateRequest request, HttpHeaders headers){
+        HttpEntity<YandexTranslateRequest> entity = new HttpEntity<>(request, headers);
+        ResponseEntity<YandexTranslateResponse> response = restTemplate.exchange(url, HttpMethod.POST, entity, YandexTranslateResponse.class);
+        return Objects.requireNonNull(response.getBody()).getTranslations().get(0).getText();
     }
 
     private boolean isOneRussianWord(String word) {
-        // Русское слово состоит из одного слово, либо содержит дефис
         return word.matches("[А-Яа-яЁё]+(-[А-Яа-яЁё]+)*");
     }
 
-
-        @PostConstruct
-        public void init() {
-            // Инициализируем словарь при старте приложения
-            String dicPath = Paths.get("src/main/resources/hunspell/ru_RU.dic").toString();
-            String affPath = Paths.get("src/main/resources/hunspell/ru_RU.aff").toString();
-            dictionary = new Hunspell(dicPath, affPath);
-        }
-
-        @Transactional
-        public boolean isRussianWordExistByDictionary(String word) {
-            // Проверяем правильность слова
-            return dictionary.isCorrect(word);
-        }
-
+    @Transactional
+    public boolean isRussianWordExistByDictionary(String word) {
+        return dictionary.isCorrect(word);
+    }
 }

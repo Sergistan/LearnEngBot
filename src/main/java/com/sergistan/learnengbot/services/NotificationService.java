@@ -8,8 +8,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -21,21 +21,20 @@ public class NotificationService {
     @Transactional
     @Scheduled(cron = "0 0 13 * * ?")
     public void sendDailyWordReminder() {
-        List<User> users = userRepository.findAll();
-        for (User user : users) {
-            List<Word> userWords = new ArrayList<>(user.getWords());
-            if (!userWords.isEmpty()) {
-                sendNotification(user, userWords);
-            }
-        }
+        userRepository.findAll().stream()
+                .filter(user -> !user.getWords().isEmpty()) // Отправляем только тем, у кого есть слова
+                .forEach(this::sendNotification); // Отправляем уведомление для каждого пользователя
     }
 
-    private void sendNotification(User user, List<Word> words) {
-        StringBuilder message = new StringBuilder("Пора повторить следующие слова: \n");
-        for (Word word : words) {
-            message.append(word.getRussianWord()).append(" - ").append(word.getEnglishWord()).append("\n");
-        }
-        telegramBotService.sendMessage(user.getChatId(), message.toString());
+    private void sendNotification(User user) {
+        String message = buildMessage(user.getWords());
+        telegramBotService.sendMessage(user.getChatId(), message);
+    }
+
+    private String buildMessage(Set<Word> words) {
+        return words.stream()
+                .map(word -> word.getRussianWord() + " - " + word.getEnglishWord())
+                .collect(Collectors.joining("\n", "Пора повторить следующие слова: \n", ""));
     }
 
 }

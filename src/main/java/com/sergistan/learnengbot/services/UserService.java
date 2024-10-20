@@ -6,7 +6,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -14,15 +13,15 @@ public class UserService {
 
     private final UserRepository userRepository;
 
-    public void createUser (Long chatId, String username){
-        Optional<User> user = userRepository.findByChatIdAndUsername(chatId, username);
-        if (user.isEmpty()){
-            User userBuild = User.builder()
-                    .chatId(chatId)
-                    .username(username)
-                    .words(new HashSet<>())
-                    .build();
-            userRepository.save(userBuild);
-        }
+    public void createUser(Long chatId, String username) {
+        userRepository.findByChatIdAndUsername(chatId, username)
+                .orElseGet(() -> {
+                    User newUser = User.builder()
+                            .chatId(chatId)
+                            .username(username)
+                            .words(new HashSet<>())
+                            .build();
+                    return userRepository.save(newUser);
+                });
     }
 }

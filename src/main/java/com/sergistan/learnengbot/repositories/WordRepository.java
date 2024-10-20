@@ -11,6 +11,8 @@ import java.util.Optional;
 public interface WordRepository extends JpaRepository<Word, Long> {
     Optional<Word> findByRussianWordAndEnglishWord(String russianWord, String englishWord);
 
+    Optional<Word> findByEnglishWordIgnoreCase(String englishWord);
+
     @Query(value = "SELECT uw.user_id FROM user_words uw WHERE uw.word_id = ?1", nativeQuery = true)
     Optional<Long> checkUsersAssociatedWithThisWord(Long wordId);
 }

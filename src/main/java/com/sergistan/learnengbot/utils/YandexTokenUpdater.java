@@ -34,9 +34,6 @@ public class YandexTokenUpdater {
 
     private final RestTemplate restTemplate;
 
-    // Actuator URL для перезапуска
-    private static final String RESTART_ENDPOINT = "http://localhost:8080/actuator/restart";
-
     // Метод, который проверяет и обновляет токен
     @Scheduled(cron = "0 0 0 * * ?")
     public void checkAndUpdateToken() throws InterruptedException {
@@ -45,7 +42,6 @@ public class YandexTokenUpdater {
             if (shouldUpdateToken()) {
                 updateYandexToken();
                 updateLastUpdateTime();
-                restartApplication();  // Перезапуск через Actuator
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -94,14 +90,9 @@ public class YandexTokenUpdater {
             Path path = Path.of(ENV_FILE);
             List<String> lines = Files.readAllLines(path);
 
-            // Замена строки с YANDEX_TOKEN
+            // Обновляем токен в файле .env
             List<String> updatedLines = lines.stream()
-                    .map(line -> {
-                        if (line.startsWith("YANDEX_TOKEN")) {
-                            return "YANDEX_TOKEN=" + newToken;
-                        }
-                        return line;
-                    })
+                    .map(line -> line.startsWith("YANDEX_TOKEN") ? "YANDEX_TOKEN=" + newToken : line)
                     .collect(Collectors.toList());
 
             // Запись обновленного файла .env
@@ -135,16 +126,6 @@ public class YandexTokenUpdater {
 
         // Возвращаем токен, убирая любые лишние символы
         return output.toString().trim();
-    }
-
-    private void restartApplication() {
-        try {
-            // Отправка POST-запроса для перезапуска приложения через Actuator
-            restTemplate.postForObject(RESTART_ENDPOINT, null, String.class);
-            System.out.println("Приложение перезапускается через Spring Actuator.");
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 }
 

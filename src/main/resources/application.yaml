@@ -18,8 +18,11 @@ spring:
     password: 1234
   config:
     import: optional:file:.env[.properties]
+  devtools:
+    restart:
+      enabled: true
 management:
   endpoints:
     web:
       exposure:
-        include: restart
+        include: "*"

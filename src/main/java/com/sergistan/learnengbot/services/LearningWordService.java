@@ -9,9 +9,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Arrays;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -22,91 +22,91 @@ public class LearningWordService {
 
     @Transactional
     public void saveWord(Long chatId, String userName, String wordWithTranslate) {
-        String[] splitWord = wordWithTranslate.split("-");
-        if (Arrays.stream(splitWord).count() == 2) {
-            Optional<User> userOptional = userRepository.findByChatIdAndUsername(chatId, userName);
-            if (userOptional.isPresent()) {
-                User user = userOptional.get();
+        String[] splitWord = validateWordWithTranslate(wordWithTranslate);
+        String russianWord = splitWord[0].trim();
+        String englishWord = splitWord[1].trim();
+        User user = getUserByChatIdAndUsername(chatId, userName);
 
-                String russianWord = Arrays.stream(splitWord).findFirst().get();
-                String englishWord = Arrays.stream(splitWord).skip(1).findFirst().get();
+        Word word = wordRepository.findByRussianWordAndEnglishWord(russianWord, englishWord)
+                .orElseGet(() -> createAndSaveWord(russianWord, englishWord));
 
-                Optional<Word> wordOptional = wordRepository.findByRussianWordAndEnglishWord(russianWord, englishWord);
-
-                Word word;
-                if (wordOptional.isPresent()) {
-                    if (user.getWords().contains(wordOptional.get())) {
-                        return;
-                    } else {
-                        word = wordOptional.get();
-                    }
-                } else {
-                    word = Word.builder()
-                            .russianWord(russianWord)
-                            .englishWord(englishWord)
-                            .build();
-                    wordRepository.save(word);
-                }
-                user.getWords().add(word);
-                userRepository.save(user);
-            } else {
-                throw new ServiceException("User not found");
-            }
-        } else {
-            throw new ServiceException("Incorrect translation: The text-translation structure cannot be detected.");
+        if (user.getWords().contains(word)) {
+            return;
         }
+
+        user.getWords().add(word);
+        userRepository.save(user);
     }
 
     @Transactional
     public void deleteWordIfItWasAddedEarlier(Long chatId, String userName, String wordWithTranslate) {
-        String[] splitWord = wordWithTranslate.split("-");
-        if (Arrays.stream(splitWord).count() == 2) {
-            Optional<User> userOptional = userRepository.findByChatIdAndUsername(chatId, userName);
-            if (userOptional.isPresent()) {
-                User user = userOptional.get();
+        String[] splitWord = validateWordWithTranslate(wordWithTranslate);
+        String russianWord = splitWord[0].trim();
+        String englishWord = splitWord[1].trim();
 
-                String russianWord = Arrays.stream(splitWord).findFirst().get();
-                String englishWord = Arrays.stream(splitWord).skip(1).findFirst().get();
+        User user = getUserByChatIdAndUsername(chatId, userName);
 
-                Optional<Word> wordOptional = wordRepository.findByRussianWordAndEnglishWord(russianWord, englishWord);
-
-                if (wordOptional.isPresent()) {
-                    Word word = wordOptional.get();
-                    if (user.getWords().contains(wordOptional.get())) {
-                        user.getWords().remove(word);
-                        if (wordRepository.checkUsersAssociatedWithThisWord(word.getId()).isEmpty()) {
-                            wordRepository.delete(word);
-                        }
-                    }
-                } else {
-                    return;
+        wordRepository.findByRussianWordAndEnglishWord(russianWord, englishWord).ifPresent(word -> {
+            if (user.getWords().remove(word)) {
+                if (wordRepository.checkUsersAssociatedWithThisWord(word.getId()).isEmpty()) {
+                    wordRepository.delete(word);
                 }
-            } else {
-                throw new ServiceException("User not found");
+                userRepository.save(user);
             }
-        } else {
-            throw new ServiceException("Incorrect translation: The text-translation structure cannot be detected.");
-        }
-
+        });
     }
+
     @Transactional
     public String workoutWords(Long chatId, String username) {
-        Optional<User> userOptional = userRepository.findByChatIdAndUsername(chatId, username);
-        if (userOptional.isPresent()) {
-            User user = userOptional.get();
-            Set<Word> words = user.getWords();
-            if (user.getWords().isEmpty()){
-                return  "У вас не добавлены слова для повторения!";
-            } else{
-                StringBuilder message = new StringBuilder("Вы сохранили следующие слова для повторения: \n");
-                for (Word word : words) {
-                    message.append(word.getRussianWord()).append(" - ").append(word.getEnglishWord()).append("\n");
-                }
-                return message.toString();
-            }
-        } else {
-            throw new ServiceException("User not found");
+        User user = getUserByChatIdAndUsername(chatId, username);
+
+        Set<Word> words = user.getWords();
+        if (words.isEmpty()) {
+            return "У вас не добавлены слова для повторения!";
         }
 
+        return words.stream()
+                .map(word -> word.getRussianWord() + " - " + word.getEnglishWord())
+                .collect(Collectors.joining("\n", "Вы сохранили следующие слова для повторения:\n", ""));
+    }
+
+    @Transactional
+    public String manualDeletingWord(Long chatId, String userName, String englishWord) {
+        return wordRepository.findByEnglishWordIgnoreCase(englishWord)
+                .map(foundWord -> {
+                    User user = getUserByChatIdAndUsername(chatId, userName);
+                    if (user.getWords().contains(foundWord)) {
+                        user.getWords().remove(foundWord);
+                        wordRepository.delete(foundWord);
+                        return "Слово %s было удалено из вашего списка".formatted(englishWord);
+                    } else {
+                        return "Слово %s не было ранее у вас сохранено".formatted(englishWord);
+                    }
+                })
+                .orElse("Слово %s нет в базе данных".formatted(englishWord));
+    }
+
+    // Вспомогательный метод для проверки структуры строки
+    private String[] validateWordWithTranslate(String wordWithTranslate) {
+        String[] splitWord = wordWithTranslate.split("-");
+        if (splitWord.length != 2) {
+            throw new ServiceException("Incorrect translation: The text-translation structure cannot be detected.");
+        }
+        return splitWord;
+    }
+
+    // Вспомогательный метод для получения пользователя
+    private User getUserByChatIdAndUsername(Long chatId, String username) {
+        return userRepository.findByChatIdAndUsername(chatId, username)
+                .orElseThrow(() -> new ServiceException("User not found"));
+    }
+
+    // Вспомогательный метод для создания и сохранения нового слова
+    private Word createAndSaveWord(String russianWord, String englishWord) {
+        Word word = Word.builder()
+                .russianWord(russianWord)
+                .englishWord(englishWord)
+                .build();
+        return wordRepository.save(word);
     }
 }
