@@ -1,5 +1,7 @@
 package com.sergistan.learnengbot.utils;
 
+import com.sergistan.learnengbot.models.YandexToken;
+import com.sergistan.learnengbot.repositories.YandexTokenRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -8,103 +10,50 @@ import org.springframework.web.client.RestTemplate;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Optional;
 
 @Service
 public class YandexTokenUpdater {
+    private final YandexTokenRepository tokenRepository;
+    private final RestTemplate restTemplate;
 
     @Autowired
-    public YandexTokenUpdater(RestTemplate restTemplate) {
+    public YandexTokenUpdater(YandexTokenRepository tokenRepository, RestTemplate restTemplate) {
+        this.tokenRepository = tokenRepository;
         this.restTemplate = restTemplate;
     }
 
-    // Путь к файлу для хранения времени последнего обновления токена
-    private static final String LAST_UPDATE_FILE = "last_token_update.txt";
-
-    // Путь к файлу .env
-    private static final String ENV_FILE = ".env";
-
-    private final RestTemplate restTemplate;
-
     // Метод, который проверяет и обновляет токен
-    @Scheduled(cron = "0 0 0 * * ?")
-    public void checkAndUpdateToken() throws InterruptedException {
-        try {
-            // Проверка, нужно ли обновлять токен
-            if (shouldUpdateToken()) {
-                updateYandexToken();
-                updateLastUpdateTime();
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
+    @Scheduled(cron = "0 0 0 * * ?") // Запускается каждый день в полночь
+    public void checkAndUpdateToken() throws InterruptedException, IOException {
+        // Проверка, нужно ли обновлять токен
+        if (shouldUpdateToken()) {
+            String newToken = updateYandexToken(); // Получаем новый токен
+            saveNewToken(newToken);               // Сохраняем его в базу данных
         }
     }
 
     // Метод для проверки, прошло ли более 24 часов с последнего обновления
-    private boolean shouldUpdateToken() throws IOException {
-        // Чтение файла с временем последнего обновления
-        // Проверяем, существует ли файл
-        Path path = Path.of(LAST_UPDATE_FILE);
-        if (!Files.exists(path)) {
-            // Если файл не существует, создаём его с текущим временем
-            updateLastUpdateTime();
-            return true; // Нужно обновить токен
+    private boolean shouldUpdateToken() {
+        Optional<YandexToken> optionalToken = tokenRepository.findTopByOrderByUpdatedAtDesc();
+
+        // Если токен отсутствует в базе данных, или последний токен был обновлен более 24 часов назад, обновляем токен
+        if (optionalToken.isEmpty()) {
+            return true; // Токен отсутствует, требуется обновление
         }
 
-        // Чтение файла с временем последнего обновления
-        List<String> lines = Files.readAllLines(path);
-        if (lines.isEmpty()) {
-            return true; // Если файл пустой, нужно обновить токен
-        }
-
-        LocalDateTime lastUpdate = LocalDateTime.parse(lines.get(0)); // Время последнего обновления
+        YandexToken lastToken = optionalToken.get();
+        LocalDateTime lastUpdate = lastToken.getUpdatedAt();
         LocalDateTime now = LocalDateTime.now();
 
         // Проверка, прошло ли более 24 часов с последнего обновления
         return Duration.between(lastUpdate, now).toHours() >= 24;
-
     }
 
-    // Метод для обновления времени последнего обновления токена
-    private void updateLastUpdateTime() throws IOException {
-        // Запись текущего времени в файл
-        Files.write(Paths.get(LAST_UPDATE_FILE), Collections.singletonList(LocalDateTime.now().toString()),
-                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-    }
-
-    // Метод для обновления токена
-    private void updateYandexToken() throws IOException, InterruptedException {
-        // Здесь реализуйте логику получения нового токена, например, вызов PowerShell или другого API
-        String newToken = getNewYandexToken(); // Полученный новый токен
-
-        try {
-            // Чтение содержимого файла .env
-            Path path = Path.of(ENV_FILE);
-            List<String> lines = Files.readAllLines(path);
-
-            // Обновляем токен в файле .env
-            List<String> updatedLines = lines.stream()
-                    .map(line -> line.startsWith("YANDEX_TOKEN") ? "YANDEX_TOKEN=" + newToken : line)
-                    .collect(Collectors.toList());
-
-            // Запись обновленного файла .env
-            Files.write(path, updatedLines, StandardOpenOption.TRUNCATE_EXISTING);
-
-            System.out.println("Токен успешно обновлен в файле .env");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private String getNewYandexToken() throws IOException, InterruptedException {
+    // Метод для обновления токена (например, вызов PowerShell или другого API)
+    private String updateYandexToken() throws IOException, InterruptedException {
         // Команда для выполнения PowerShell скрипта (замените путь к скрипту)
         String[] command = {"powershell.exe", "-ExecutionPolicy", "Bypass", "-File", "src/main/resources/update-yandex-token.ps1"};
 
@@ -126,6 +75,14 @@ public class YandexTokenUpdater {
 
         // Возвращаем токен, убирая любые лишние символы
         return output.toString().trim();
+    }
+
+    // Сохранение нового токена в базу данных
+    private void saveNewToken(String newToken) {
+        YandexToken token = new YandexToken();
+        token.setToken(newToken);
+        token.setUpdatedAt(LocalDateTime.now()); // Устанавливаем текущее время как время обновления
+        tokenRepository.save(token);
     }
 }
 

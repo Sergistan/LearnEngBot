@@ -175,7 +175,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
 
     public void deleteCommand(Long chatId) {
         userStates.put(chatId, "AWAITING_WORD_TO_DELETE");
-        sendMessage(chatId, "Введите слово для удаления:");
+        sendMessage(chatId, "Введите английское слово для удаления:");
     }
 
     public void deleteWord(Long chatId, String userName, String englishWord) {
