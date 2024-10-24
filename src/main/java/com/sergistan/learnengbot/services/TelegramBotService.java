@@ -42,6 +42,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
         listOfCommands.add(new BotCommand("/start", "Получение стартового сообщения"));
         listOfCommands.add(new BotCommand("/random", "Получение случайного английского слова с переводом"));
         listOfCommands.add(new BotCommand("/practice", "Вывод сохраненных слов с переводом для повторения"));
+        listOfCommands.add(new BotCommand("/delete", "Удаление английского слова из списка для повторения"));
         listOfCommands.add(new BotCommand("/help", "Информация как использовать этот бот"));
         try {
             this.execute(new SetMyCommands(listOfCommands, new BotCommandScopeDefault(), null));
@@ -65,6 +66,8 @@ public class TelegramBotService extends TelegramLongPollingBot {
     private static final String ADVERB = "adverb";
     private static final String LEARN = "learn";
     private static final String MISS = "miss";
+
+    private final Map<Long, String> userStates = new HashMap<>();
 
     @Override
     public String getBotUsername() {
@@ -107,18 +110,21 @@ public class TelegramBotService extends TelegramLongPollingBot {
         String message = update.getMessage().getText();
         Long chatId = update.getMessage().getChatId();
         String userName = update.getMessage().getChat().getUserName();
-        if (message.startsWith(DELETE)) {
-            deleteCommand(chatId, userName, message);
+        if("AWAITING_WORD_TO_DELETE".equals(userStates.get(chatId))) {
+            deleteWord(chatId, userName, message);
+            userStates.remove(chatId);
         } else {
-            switch (message) {
-                case START -> startCommand(chatId, userName);
-                case RANDOM -> choosePartOfSpeech(chatId);
-                case PRACTICE -> practiceCommand(chatId, userName);
-                case HELP -> helpCommand(chatId);
-                default -> translateCommand(chatId, message);
-            }
+        switch (message) {
+            case START -> startCommand(chatId, userName);
+            case RANDOM -> choosePartOfSpeech(chatId);
+            case PRACTICE -> practiceCommand(chatId, userName);
+            case DELETE -> deleteCommand(chatId);
+            case HELP -> helpCommand(chatId);
+            default -> translateCommand(chatId, message);
         }
     }
+
+}
 
     public void startCommand(Long chatId, String userName) {
         userService.createUser(chatId, userName);
@@ -135,7 +141,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
     }
 
     private void practiceCommand(Long chatId, String username) {
-        String words = learningWordService.workoutWords(chatId, username);
+        String words = learningWordService.repeatWords(chatId, username);
         sendMessage(chatId, words);
     }
 
@@ -149,9 +155,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
                                 
                 Для получения перевода русского слова на английский язык просто напишите его в чате.
                                 
-                Для удаления слова из списка сохраненных слов:
-                1) вариант: выполните команду /delete и через пробел после команды напишите английское слово, которое хотите удалить;
-                2) вариант: напишите русское слово в чате и нажмите на кнопку "Не запоминать слово".
+                Для удаления слова из списка сохраненных слов выполните команду /delete и затем напишите английское слово, которое хотите удалить.
                 """;
         sendMessage(chatId, helpText);
     }
@@ -169,19 +173,15 @@ public class TelegramBotService extends TelegramLongPollingBot {
         }
     }
 
-    private void deleteCommand(Long chatId, String userName, String message) {
+    public void deleteCommand(Long chatId) {
+        userStates.put(chatId, "AWAITING_WORD_TO_DELETE");
+        sendMessage(chatId, "Введите слово для удаления:");
+    }
+
+    public void deleteWord(Long chatId, String userName, String englishWord) {
         try {
-            String textFromManualDeletingWord = "Некорректный ввод";
-            String[] splitWords = message.split(" ");
-            if (splitWords.length != 2) {
-                sendMessage(chatId, textFromManualDeletingWord);
-                return;
-            }
-            Optional<String> word = Arrays.stream(splitWords).skip(1).findFirst();
-            if (word.isPresent()) {
-                textFromManualDeletingWord = learningWordService.manualDeletingWord(chatId, userName, word.get());
-                sendMessage(chatId, textFromManualDeletingWord);
-            }
+            String resultMessage = learningWordService.deletingWord(chatId, userName, englishWord);
+            sendMessage(chatId, resultMessage);
         } catch (Exception e) {
             throw new ServiceException("Ошибка удаления слова", e);
         }

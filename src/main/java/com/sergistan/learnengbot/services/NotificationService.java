@@ -22,8 +22,8 @@ public class NotificationService {
     @Scheduled(cron = "0 0 13 * * ?")
     public void sendDailyWordReminder() {
         userRepository.findAll().stream()
-                .filter(user -> !user.getWords().isEmpty()) // Отправляем только тем, у кого есть слова
-                .forEach(this::sendNotification); // Отправляем уведомление для каждого пользователя
+                .filter(user -> !user.getWords().isEmpty())
+                .forEach(this::sendNotification);
     }
 
     private void sendNotification(User user) {

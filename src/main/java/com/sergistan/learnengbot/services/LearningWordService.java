@@ -9,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -57,7 +56,7 @@ public class LearningWordService {
     }
 
     @Transactional
-    public String workoutWords(Long chatId, String username) {
+    public String repeatWords(Long chatId, String username) {
         User user = getUserByChatIdAndUsername(chatId, username);
 
         Set<Word> words = user.getWords();
@@ -71,7 +70,7 @@ public class LearningWordService {
     }
 
     @Transactional
-    public String manualDeletingWord(Long chatId, String userName, String englishWord) {
+    public String deletingWord(Long chatId, String userName, String englishWord) {
         return wordRepository.findByEnglishWordIgnoreCase(englishWord)
                 .map(foundWord -> {
                     User user = getUserByChatIdAndUsername(chatId, userName);
@@ -86,7 +85,6 @@ public class LearningWordService {
                 .orElse("Слово %s нет в базе данных".formatted(englishWord));
     }
 
-    // Вспомогательный метод для проверки структуры строки
     private String[] validateWordWithTranslate(String wordWithTranslate) {
         String[] splitWord = wordWithTranslate.split("-");
         if (splitWord.length != 2) {
@@ -95,13 +93,11 @@ public class LearningWordService {
         return splitWord;
     }
 
-    // Вспомогательный метод для получения пользователя
     private User getUserByChatIdAndUsername(Long chatId, String username) {
         return userRepository.findByChatIdAndUsername(chatId, username)
                 .orElseThrow(() -> new ServiceException("User not found"));
     }
 
-    // Вспомогательный метод для создания и сохранения нового слова
     private Word createAndSaveWord(String russianWord, String englishWord) {
         Word word = Word.builder()
                 .russianWord(russianWord)

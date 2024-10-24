@@ -21,6 +21,7 @@ spring:
   devtools:
     restart:
       enabled: true
+      trigger-file: .env
 management:
   endpoints:
     web:
