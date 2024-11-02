@@ -22,17 +22,17 @@ import java.util.Objects;
 public class YandexTranslateApiService {
 
     @Autowired
-    public YandexTranslateApiService(RestTemplate restTemplate, YandexTokenService yandexTokenService, @Value("${yandex_url}") String url,
+    public YandexTranslateApiService(RestTemplate restTemplate, @Value("${yandex_api_token}") String yandexApiToken, @Value("${yandex_url}") String url,
                                      @Value("${format_request}") String format, @Value("${folderId_request}") String folderId) {
         this.restTemplate = restTemplate;
-        this.yandexTokenService = yandexTokenService;
+        this.yandexApiToken = yandexApiToken;
         this.url = url;
         this.format = format;
         this.folderId = folderId;
     }
 
     private final RestTemplate restTemplate;
-    private final YandexTokenService yandexTokenService;
+    private final String yandexApiToken;
     private final String url;
     private final String format;
     private final String folderId;
@@ -82,7 +82,7 @@ public class YandexTranslateApiService {
 
     private HttpHeaders createHttpHeaders() {
         HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer " + yandexTokenService.getCurrentToken());
+        headers.set("Authorization", "Api-Key " + yandexApiToken);
         headers.set("Content-type", "application/json");
         return headers;
     }

@@ -1,0 +1,43 @@
+version: '3.7'
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  db-data:
+    driver: local
+
+services:
+  app:
+    build: ./
+    container_name: LearnEngBot
+    networks:
+      - app-network
+    depends_on:
+      - db
+    env_file:
+      - .env
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/LearnEngBot
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 1234
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      TZ: Europe/Moscow
+    ports:
+      - "8080:8080"
+
+  db:
+    image: postgres:15.1-alpine
+    container_name: postgres
+    networks:
+      - app-network
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: LearnEngBot
+      TZ: Europe/Moscow
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
