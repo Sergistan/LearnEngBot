@@ -24,6 +24,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: 1234
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       TZ: Europe/Moscow
+    restart: always
     ports:
       - "8080:8080"
 
@@ -39,5 +40,6 @@ services:
       TZ: Europe/Moscow
     volumes:
       - db-data:/var/lib/postgresql/data
+    restart: always
     ports:
       - "5432:5432"
