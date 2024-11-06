@@ -14,7 +14,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
-import java.nio.file.Paths;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Objects;
 
@@ -40,9 +43,28 @@ public class YandexTranslateApiService {
 
     @PostConstruct
     public void init() {
-        String dicPath = Paths.get("src/main/resources/hunspell/ru_RU.dic").toString();
-        String affPath = Paths.get("src/main/resources/hunspell/ru_RU.aff").toString();
-        dictionary = new Hunspell(dicPath, affPath);
+        try {
+            // Загружаем файлы словарей из ресурсов во временные файлы
+            Path dicTemp = Files.createTempFile("ru_RU", ".dic");
+            Path affTemp = Files.createTempFile("ru_RU", ".aff");
+
+            // Копируем содержимое ресурсов во временные файлы
+            try (var dicStream = getClass().getResourceAsStream("/hunspell/ru_RU.dic");
+                 var affStream = getClass().getResourceAsStream("/hunspell/ru_RU.aff")) {
+                if (dicStream != null && affStream != null) {
+                    Files.copy(dicStream, dicTemp, StandardCopyOption.REPLACE_EXISTING);
+                    Files.copy(affStream, affTemp, StandardCopyOption.REPLACE_EXISTING);
+                } else {
+                    throw new IOException("Словари не найдены в ресурсах.");
+                }
+            }
+
+            // Инициализируем Hunspell с временными файлами
+            dictionary = new Hunspell(dicTemp.toString(), affTemp.toString());
+
+        } catch (IOException e) {
+            throw new RuntimeException("Ошибка инициализации словаря Hunspell", e);
+        }
     }
 
     public String translateRuToEn(String text) {
